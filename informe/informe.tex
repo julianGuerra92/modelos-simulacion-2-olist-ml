@@ -48,6 +48,7 @@ El desarrollo de una solución basada en técnicas de Aprendizaje de Máquina (M
 
 
 \subsection{Base de datos}
+\label{sec:datos}
 
 Para este proyecto utilizamos el \emph{Brazilian E-Commerce Public Dataset} proporcionado por Olist en la plataforma de kaggle~\cite{olist2018}. Originalmente, la base de datos está dividida en 9 tablas relacionales que contienen información sobre órdenes, clientes, productos, vendedores, reseñas y pagos (Tabla~\ref{tab:tablas}).
 
@@ -157,9 +158,9 @@ Para resolver este problema, hemos decidido estructurar la solución utilizando 
 
 \section{Estado del arte}
 
-El propósito fundamental de esta revisión fue identificar cómo la literatura especializada de Machine Learning ha abordado la predicción de la satisfacción en el comercio electrónico, priorizando aquellos trabajos que utilizaron el mismo conjunto de datos de Olist. Analizamos cuatro artículos resumidos en la Tabla III. Todos los autores abordan el problema bajo el mismo paradigma de clasificación supervisada binaria, agrupando las calificaciones de 1-2 estrellas (insatisfacción) frente a las de 3-5 estrellas. Además, los cuatro estudios coinciden en que la logística y los tiempos de entrega son las características (variables) con mayor capacidad predictiva.
+Revisamos cuatro artículos de revista que predicen la satisfacción o la retención de clientes con los datos de Olist (Tabla~\ref{tab:sota}). Los cuatro plantean una clasificación supervisada binaria, y tres usan el mismo corte que nosotros, 1--2 estrellas contra 3--5. Wong y Marikannan~\cite{wong2020} compararon árboles de decisión, bosque aleatorio, redes neuronales y SVM con 20 y con 5 variables, y probaron submuestreo, sobremuestreo, SMOTE y ROSE contra el desbalance. El bosque aleatorio obtuvo la mejor exactitud (87,6~\%), pero detectó solo el 29,5~\% de los clientes insatisfechos y ninguna técnica de balanceo mejoró esa cifra. Zaghloul et~al.~\cite{zaghloul2024} seleccionaron variables por información mutua y compararon regresión logística, SVM, bosque aleatorio, \emph{gradient boosting} y un perceptrón multicapa. Reportan 92~\% de exactitud y AUC-ROC de 0,90 con bosque aleatorio y sobremuestreo, pero sus métricas están ponderadas por la frecuencia de cada clase y quedan dominadas por la mayoritaria. Orman~\cite{orman2026} evaluó ocho modelos clásicos y cinco redes profundas con partición estratificada 80/20 y SMOTE aplicado solo al entrenamiento, y es el único que reporta por separado las métricas de la clase insatisfecha: su mejor red (GRU-LSTM) llega a 86,1~\% de exactitud con una sensibilidad de 14,4~\%, un $F_1$ de 0,24 y un AUC-ROC de 0,56 en esa clase. Zeinali et~al.~\cite{zeinali2026} predicen el abandono a 180 días por cliente con regresión logística, bosque aleatorio y XGBoost, y encuentran que la calificación promedio del cliente es la segunda variable más importante, lo que conecta la insatisfacción con la pérdida de clientes.
 
-\begin{table*}[!ht]
+\begin{table*}[!t]
 \centering
 \caption{Trabajos previos sobre satisfacción y retención de clientes con los datos de Olist}
 \label{tab:sota}
@@ -179,28 +180,95 @@ Zeinali et~al.~\cite{zeinali2026} & Supervisado, binario (abandono a 180 días),
 \end{tabularx}
 \end{table*}
 
-\vspace{1em}
-Al analizar las técnicas, validación, métricas y resultados de estos trabajos, encontramos dos hallazgos metodológicos clave que adoptaremos para nuestro proyecto:
+Dos cosas de esta revisión cambiaron nuestro diseño. La primera es que una exactitud alta puede convivir con un modelo que casi no detecta a los insatisfechos: con 12,8~\% de positivos, un modelo que marque todas las órdenes como satisfechas tiene 87,2~\% de exactitud. Por eso evaluamos con métricas de la clase insatisfecha (sección~\ref{sec:config}). La segunda es la unidad de análisis. Zaghloul et~al. partieron los datos por artículo, de modo que artículos de una misma orden, con la misma fecha de entrega y la misma calificación, pueden quedar unos en entrenamiento y otros en prueba, y parte de su desempeño puede venir de esa fuga. Nosotros partimos por orden. En lo que sí coinciden los cuatro trabajos es en que las variables de entrega son las más predictivas, igual que en nuestro análisis exploratorio.
 
-\begin{enumerate}
-    \item El peligro de usar la Exactitud Global (Accuracy): Notamos que varios trabajos reportan exactitudes globales muy altas (entre el 86\% y el 92\%), pero fallan en la detección de la clase que realmente importa: los clientes insatisfechos. Por ejemplo, Wong y Marikannan \cite{wong2020} logran un 87.6\% de exactitud con un Random Forest, pero su modelo solo es capaz de identificar correctamente al 29.5\% de los clientes insatisfechos (especificidad). De manera similar, aunque Zaghloul et al. \cite{zaghloul2024} reportan un 92\% de exactitud general, omiten desglosar el rendimiento específico en la clase minoritaria. Un caso más transparente es el de Orman \cite{orman2026}, quien logró una exactitud del 86.1\% usando redes neuronales híbridas (GRU-LSTM), pero advierte que su modelo solo tiene una sensibilidad (Recall) del 14.4\% para los clientes insatisfechos.
-    \vspace{1em}
-    \item La definición de la unidad de análisis y la fuga de información Un aprendizaje importante surgió al revisar cómo otros dividían sus datos (metodología de validación). Vimos que Zaghloul et al. \cite{zaghloul2024} hicieron la partición de entrenamiento y prueba (67/33) a nivel de artículo individual. Esto es riesgoso porque los productos que pertenecen a una misma orden (y comparten el mismo tiempo de entrega y calificación) pueden quedar repartidos entre los datos de entrenamiento y los de prueba, generando una grave "fuga de información" (data leakage). Para evitar este error en nuestro proyecto, decidimos usar como unidad de análisis la orden de compra completa y no los artículos individuales.
-    \vspace{1em}
-    \item Finalmente, el artículo de Zeinali et al. \cite{zeinali2026} fue fundamental para entender el contexto del problema. Ellos desarrollaron un modelo de retención (XGBoost con exactitud de 81\%) e identificaron que el historial de buenas o malas calificaciones es la segunda variable más importante para predecir si un cliente abandonará la plataforma. Esto justifica plenamente la utilidad de nuestro modelo de insatisfacción como paso previo para mejorar la fidelización en Olist.
-\end{enumerate}
+\section{Entrenamiento y evaluación de los modelos}
 
-\vspace{1em}
-De igual manera, se identifica aquellas métricas reportadas en la literatura que no fueron abordadas en las clases teóricas del curso. Para un problema con $K$ clases, $n_k$ observaciones en la clase $k$ y un total de $N=\sum_k n_k$ muestras, las variantes macro y ponderada de $F_1$ se definen como:
-\begin{equation}
-F_1^{\text{macro}} = \frac{1}{K}\sum_{k=1}^{K} F_{1,k}, \qquad F_1^{\text{pond}} = \sum_{k=1}^{K} \frac{n_k}{N} F_{1,k},
-\end{equation}
-extendiendo la misma ponderación a la precisión y la sensibilidad. Por su parte, el AUC-ROC y el AUC-PR representan las integrales bajo las curvas ROC y de precisión-sensibilidad:
-\begin{equation}
-\text{AUC-ROC} = \int_0^1 \text{TPR}\; d(\text{FPR}), \qquad \text{AUC-PR} = \int_0^1 P\; dR .
-\end{equation}
-En términos probabilísticos, el AUC-ROC cuantifica la probabilidad de que el clasificador asigne una puntuación de riesgo mayor a una orden insatisfecha elegida al azar que a una satisfactoria.
+\subsection{Configuración experimental}
+\label{sec:config}
 
+Separamos el 20~\% de las órdenes (\num{19165}) como conjunto de prueba, estratificado por la etiqueta, y no lo usamos hasta comparar los modelos ya ajustados. Con el 80~\% restante (\num{76659} órdenes) elegimos los hiperparámetros por búsqueda en malla con validación cruzada estratificada de 5 pliegues. El preprocesamiento de la sección~\ref{sec:datos} va dentro de un \emph{pipeline} de scikit-learn, así que la mediana de imputación, los parámetros del escalado y los 15 niveles que conserva cada variable categórica salen del pliegue de entrenamiento, nunca del de validación ni del de prueba.
+
+La métrica principal es el $F_1$ de la clase insatisfecha, la media armónica entre la sensibilidad (qué fracción de los clientes insatisfechos detecta el modelo) y la precisión (qué fracción de las alertas son correctas). Como depende del umbral de decisión, en cada pliegue de la búsqueda en malla usamos el umbral que la maximiza. Para el modelo final fijamos el umbral con las predicciones fuera de pliegue del entrenamiento y lo aplicamos sin cambios a prueba. Reportamos además el AUC-ROC, la probabilidad de que el modelo asigne más riesgo a una orden insatisfecha que a una satisfecha, y el AUC-PR, el área bajo la curva de precisión contra sensibilidad, que es más exigente cuando la clase positiva es poco frecuente. Los intervalos de confianza del 95~\% de validación salen de la $t$ de Student sobre los 5 pliegues, y los de prueba de \num{1000} remuestreos bootstrap.
+
+Contra el desbalance usamos pesos inversos a la frecuencia de cada clase en los modelos que los admiten. En la regresión logística los comparamos con no corregir y con SMOTE aplicado solo dentro de los pliegues de entrenamiento. Con el umbral ajustado, el $F_1$ casi no cambia (0,457 sin corregir, 0,464 con pesos y 0,463 con SMOTE), pero el AUC-ROC sube de 0,733 a 0,747 con pesos, sin traslape de intervalos. Pesos y SMOTE dieron lo mismo y nos quedamos con los pesos, que no agregan filas sintéticas. KNN y la red neuronal no aceptan pesos, y en ellos el ajuste del umbral cumple esa función.
+
+Comparamos seis modelos: regresión logística (paramétrico), K vecinos más cercanos (no paramétrico), una máquina de vectores de soporte con kernel gaussiano, dos ensambles de árboles (bosque aleatorio y \emph{gradient boosting} con histogramas) y un perceptrón multicapa. La Tabla~\ref{tab:mallas} resume las mallas. Entrenamos la SVM con una submuestra estratificada de \num{16000} órdenes porque su costo crece más que cuadráticamente con el número de muestras; su evaluación en prueba sí usa el conjunto completo. El \emph{gradient boosting} y la red usan parada temprana con el 10~\% del pliegue de entrenamiento.
+
+\begin{table}[!t]
+\centering
+\caption{Hiperparámetros explorados en cada modelo. En negrita, la mejor configuración}
+\label{tab:mallas}
+\footnotesize
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Modelo & Hiperparámetro & Valores \\
+\midrule
+Regresión logística & $C$ & \textbf{0,001}; 0,01; 0,1; 1; 10 \\
+ & penalización & \textbf{L2}; L1 \\
+\addlinespace
+KNN & vecinos $k$ & 5; 15; 35; 75; \textbf{151}; 301 \\
+ & ponderación & uniforme; \textbf{distancia} \\
+\addlinespace
+SVM (RBF) & $C$ & \textbf{0,1}; 1; 10 \\
+ & $\gamma$ & 0,003; \textbf{0,01}; 0,03 \\
+\addlinespace
+Bosque aleatorio & profundidad máx. & 8; \textbf{16}; sin límite \\
+(300 árboles) & mín. órdenes por hoja & 1; 10; \textbf{50} \\
+ & variables por división & $\sqrt{d}$; \textbf{30~\%} \\
+\addlinespace
+\emph{Gradient boosting} & tasa de aprendizaje & 0,03; \textbf{0,1}; 0,3 \\
+ & máx. hojas por árbol & 15; \textbf{31}; 63 \\
+ & regularización L2 & 0; \textbf{1} \\
+\addlinespace
+Red neuronal & capas ocultas & (32); (128); \textbf{(64, 32)}; (128, 64) \\
+(ReLU, Adam) & regularización $\alpha$ & $10^{-4}$; $10^{-3}$; $\mathbf{10^{-2}}$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Resultados}
+
+La Fig.~\ref{fig:hiper} muestra cómo cambia el $F_1$ con los hiperparámetros. La regresión logística y la red casi no sobreajustan: sus curvas de entrenamiento y validación están juntas y la malla se mueve en menos de una centésima. En KNN el efecto es el esperado. Con pocos vecinos el modelo memoriza el entrenamiento ($F_1$ de 1 con ponderación por distancia) y valida mal (0,38 con $k=5$), y la validación mejora a medida que crece $k$ hasta aplanarse desde 75 vecinos. La SVM sobreajusta cuando sube $C$ o $\gamma$: con $C=10$ y $\gamma=0{,}03$ llega a 0,887 en entrenamiento y cae a 0,372 en validación. En el bosque aleatorio, los árboles sin límite de profundidad y con hojas de una orden memorizan el entrenamiento y aun así validan en 0,47, porque promediar 300 árboles compensa la varianza de cada uno; exigir 50 órdenes por hoja reduce esa brecha y da el mejor resultado. El \emph{gradient boosting} tiene la malla más plana (de 0,475 a 0,481), porque la parada temprana decide el número de árboles y controla el sobreajuste por su cuenta.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=0.92\textwidth]{efecto_hiperparametros}
+\caption{$F_1$ de la clase insatisfecha según los hiperparámetros de cada modelo. Línea continua: validación (media de 5 pliegues con intervalo de confianza del 95~\%); línea discontinua: entrenamiento. En cada panel, los hiperparámetros que no aparecen están en su mejor valor.}
+\label{fig:hiper}
+\end{figure*}
+
+La Tabla~\ref{tab:resultados} compara la mejor configuración de cada modelo en entrenamiento, validación y prueba. Los dos ensambles de árboles quedan arriba en todas las métricas, sin diferencia entre ellos: $F_1$ de 0,483 y 0,481 en prueba, AUC-ROC de 0,764 y 0,763 y AUC-PR de 0,483 y 0,481. En $F_1$ le sacan unas dos centésimas a los otros cuatro modelos y los intervalos se tocan; en AUC-PR la ventaja es más clara y los intervalos de la regresión logística y de los ensambles no se traslapan. Validación y prueba difieren en menos de 0,01 en todos los modelos, así que el umbral elegido fuera de pliegue se transfiere bien a órdenes nuevas. Las curvas ROC y de precisión-sensibilidad en prueba (Fig.~\ref{fig:curvas}) confirman el orden: los ensambles dominan sobre todo en la zona de alta precisión, que es la que importa si la empresa solo puede atender a una parte de las alertas.
+
+\begin{table*}[!t]
+\centering
+\caption{Desempeño de la mejor configuración de cada modelo. Validación: media de 5 pliegues $\pm$ semiancho del IC del 95~\%. Prueba: valor puntual con IC bootstrap del 95~\%}
+\label{tab:resultados}
+\footnotesize
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+ & \multicolumn{3}{c}{$F_1$ clase insatisfecha} & \multicolumn{2}{c}{Prueba} \\
+\cmidrule(lr){2-4}\cmidrule(l){5-6}
+Modelo & Entrenamiento & Validación & Prueba & AUC-ROC & AUC-PR \\
+\midrule
+Regresión logística & 0,463 & 0,464 $\pm$ 0,007 & 0,457 [0,439; 0,474] & 0,751 & 0,418 \\
+KNN & 1,000 & 0,458 $\pm$ 0,007 & 0,457 [0,439; 0,474] & 0,743 & 0,437 \\
+SVM & 0,471 & 0,467 $\pm$ 0,029 & 0,460 [0,443; 0,478] & 0,754 & 0,435 \\
+Bosque aleatorio & 0,526 & 0,480 $\pm$ 0,008 & 0,483 [0,466; 0,501] & 0,764 & 0,483 \\
+\emph{Gradient boosting} & 0,505 & 0,481 $\pm$ 0,008 & 0,481 [0,463; 0,498] & 0,763 & 0,481 \\
+Red neuronal & 0,486 & 0,467 $\pm$ 0,007 & 0,464 [0,445; 0,480] & 0,748 & 0,449 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=0.8\textwidth]{curvas_prueba}
+\caption{Curvas ROC (izquierda) y de precisión-sensibilidad (derecha) de los seis modelos en el conjunto de prueba. La línea punteada es un clasificador aleatorio.}
+\label{fig:curvas}
+\end{figure*}
+
+Con el bosque aleatorio y el umbral elegido, la alerta encuentra al 45~\% de los clientes que van a calificar con 1 o 2 estrellas, y 52 de cada 100 órdenes marcadas terminan mal calificadas, cuando al azar serían 13. Más de la mitad de los insatisfechos se le escapa al modelo. Las variables describen la entrega y la orden, pero no la calidad del producto ni si coincidía con lo anunciado, y una orden puede llegar a tiempo y aun así decepcionar al cliente.
 
 \bibliographystyle{IEEEtran}
 \bibliography{referencias}
