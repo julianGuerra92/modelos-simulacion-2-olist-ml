@@ -12,7 +12,8 @@ from scipy import stats
 from sklearn.metrics import (average_precision_score, balanced_accuracy_score, f1_score,
                              make_scorer, precision_recall_curve, precision_score, recall_score,
                              roc_auc_score)
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_predict
+from sklearn.base import clone
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_predict, cross_validate
 
 from .datos import SEMILLA
 
@@ -128,6 +129,28 @@ def resumen_modelo(gs, X, y, X_prueba, y_prueba):
         "validacion": resumen_validacion(gs),
         "prueba": evaluar_prueba(gs.best_estimator_, umbral, X_prueba, y_prueba),
         "modelo": gs.best_estimator_,
+    }
+
+
+def validar_configuracion(modelo, X, y, X_prueba, y_prueba, cv=None, n_jobs=-1):
+    """Evalúa una configuración fija con el mismo protocolo de la búsqueda en malla.
+
+    Los modelos de cada pliegue dan las métricas de validación y las predicciones fuera de
+    pliegue con las que se fija el umbral; después se reajusta con todo el entrenamiento.
+    """
+    res = cross_validate(modelo, X, y, cv=cv or pliegues(), scoring=PUNTAJES, return_train_score=True,
+                         return_estimator=True, return_indices=True, n_jobs=n_jobs)
+    s = np.empty(len(y))
+    for est, i in zip(res["estimator"], res["indices"]["test"]):
+        s[i] = puntaje(est, X.iloc[i])
+    umbral = umbral_f1(y, s)
+    final = clone(modelo).fit(X, y)
+    return {
+        "umbral": float(umbral),
+        "entrenamiento": {k: res[f"train_{k}"].mean() for k in METRICAS},
+        "validacion": {k: (res[f"test_{k}"].mean(), semiancho_ic(res[f"test_{k}"])) for k in METRICAS},
+        "prueba": evaluar_prueba(final, umbral, X_prueba, y_prueba),
+        "modelo": final,
     }
 
 

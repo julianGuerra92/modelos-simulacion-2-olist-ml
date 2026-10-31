@@ -40,121 +40,32 @@ Comercio electrónico, satisfacción del cliente, clasificación desbalanceada, 
 
 \subsection{Contexto y utilidad del problema}
 
-\IEEEPARstart{E}{n} el ecosistema actual del comercio electrónico, la fidelización del cliente es un factor de vital importancia para el crecimiento y la obtención de ganancias por parte de estas plataformas. Olist, una de las mayores aplicaciones de comercio electrónico en Brasil que conecta a pequeñas y medianas empresas con consumidores en todo el país, se enfrenta a un desafío que es propio a su modelo de negocio a gran escala: la gestión de la experiencia del cliente frente a una alta variabilidad operativa y logística. A pesar del éxito en las ventas y la gran acogida por la comunidad, una proporción significativa de los clientes experimentan altos niveles de insatisfacción, reflejados en calificaciones bajas respecto al servicio prestado por la plataforma. Como se evidenció en la exploración preliminar, aproximadamente el 14.7\% de las órdenes presentan este nivel de rechazo, principalmente asociado a deficiencias logísticas como tiempos de entrega prolongados y discrepancias entre la fecha estimada y la fecha real de llegada del producto.
+\IEEEPARstart{O}{list} es un marketplace brasileño que conecta pequeños y medianos comerciantes con los grandes portales de comercio electrónico del país. Cuando una orden llega, Olist le envía al cliente una encuesta para calificar la compra de 1 a 5 estrellas. En los datos públicos de la empresa, el 12,8~\% de las órdenes entregadas recibe 1 o 2 estrellas. Esa calificación baja la reputación del vendedor y la confianza de los compradores nuevos, y la empresa se entera tarde: cuando el cliente ya dejó la reseña o radicó una queja.
 
-Este indicador no solo representa un cliente insatisfecho, sino que impacta directamente en las métricas de retención, incrementando la tasa de abandono y afectando la reputación de la marca frente a nuevos compradores. Tradicionalmente, la gestión de la insatisfacción en el comercio electrónico (y en muchos otros sectores del comercio) se basa en un proceso reactivo: la empresa interviene únicamente después de que el usuario ha dejado una reseña negativa o ha radicado una queja (PQRS), momento en el cual la relación comercial con el cliente ya está afectada y el riesgo de pérdida es demasiado alta.
-
-El desarrollo de una solución basada en técnicas de Aprendizaje de Máquina (ML) resulta fundamental y altamente útil para transformar este enfoque reactivo en uno predictivo y proactivo que entregaría información útil a las empresas y plataformas digitales como Olist. Mediante el entrenamiento de algoritmos de clasificación supervisada, es posible identificar de manera anticipada patrones y relaciones entre las variables operativas (tiempos logísticos, valor del flete, cantidad de vendedores involucrados, métodos de pago y ubicación geográfica) para predecir la probabilidad de que una orden resulte en una experiencia insatisfactoria para el cliente. 
-
+Proponemos un modelo que estime, en el momento en que se registra la entrega y antes de que el cliente califique, la probabilidad de que la orden termine con 1 o 2 estrellas. Con esa alerta, el equipo de servicio al cliente puede contactar primero a las órdenes de mayor riesgo, ofrecer una compensación o revisar al vendedor y a la transportadora. El vínculo entre insatisfacción y abandono que motiva el trabajo viene de un estudio externo~\cite{zeinali2026}. En esta base no se puede verificar, porque el 97~\% de los clientes compra una sola vez y la recompra no cambia entre satisfechos e insatisfechos (3,0~\% frente a 2,8~\%, prueba $\chi^2$ con $p=0{,}28$).
 
 \subsection{Base de datos}
 \label{sec:datos}
 
-Para este proyecto utilizamos el \emph{Brazilian E-Commerce Public Dataset} proporcionado por Olist en la plataforma de kaggle~\cite{olist2018}. Originalmente, la base de datos está dividida en 9 tablas relacionales que contienen información sobre órdenes, clientes, productos, vendedores, reseñas y pagos (Tabla~\ref{tab:tablas}).
+Usamos el \emph{Brazilian E-Commerce Public Dataset} que Olist publicó en Kaggle~\cite{olist2018}: \num{99441} órdenes hechas entre 2016 y 2018 y repartidas en nueve tablas relacionales (órdenes, artículos, pagos, reseñas, productos, clientes, vendedores, geolocalización y traducción de categorías). La unidad de análisis es la orden. Conservamos las órdenes entregadas que tienen fecha real de entrega y reseña, que son \num{95824} de \num{92747} clientes distintos; si una orden tiene varias reseñas tomamos la más reciente.
 
-\begin{table}[h!]
-\centering
-\caption{Tablas originales del conjunto de datos}
-\label{tab:tablas}
-\begin{tabular}{@{}lrrl@{}}
-\toprule
-Tabla & Filas & Col. & Contenido \\
-\midrule
-orders & \num{99441} & 8 & estado y fechas de la orden \\
-order\_items & \num{112650} & 7 & artículos, precio, flete \\
-order\_payments & \num{103886} & 5 & tipo, cuotas y valor del pago \\
-order\_reviews & \num{99224} & 7 & calificación y comentario \\
-products & \num{32951} & 9 & categoría, peso, dimensiones \\
-customers & \num{99441} & 5 & código postal y estado \\
-sellers & \num{3095} & 4 & código postal y estado \\
-geolocation & \num{1000163} & 5 & coordenadas por código postal \\
-category\_translation & 71 & 2 & nombre de categoría en inglés \\
-\bottomrule
-\end{tabular}
-\end{table}
+Por cada orden construimos 30 variables de entrada. Las de entrega miden los días entre la compra y la aprobación del pago, entre la aprobación y el despacho a la transportadora y entre la compra y la entrega, el plazo que Olist prometió, el retraso frente a ese plazo y dos indicadores de entrega tardía y de despacho tardío del vendedor. Las económicas son el precio, el flete, la razón entre flete y precio, el valor pagado, las cuotas y el número de medios de pago. Del producto tomamos el número de artículos, productos y vendedores, el peso, el volumen, las fotos y el largo de la descripción y del nombre. Completan la tabla la distancia entre cliente y vendedor (fórmula de haversine sobre las coordenadas del código postal), el mes, el día y la hora de compra, un indicador de si comprador y vendedor están en el mismo estado y cuatro variables categóricas: tipo de pago, categoría del producto (71 niveles), estado del cliente y estado del vendedor. La construcción y la descripción de cada variable están en el notebook \texttt{01\_eda\_olist.ipynb} del repositorio.
 
-\subsubsection{Número de muestras y unidad de análisis}
-Decidimos que nuestra unidad de análisis principal sea el pedido individual (orden de compra). Al cruzar la información de las diferentes tablas y filtrar únicamente las órdenes que tienen un estado de ``entregado'' (delivered), que cuentan con una fecha real de entrega y que recibieron una reseña por parte del cliente, logramos consolidar una base de datos final de 95.824 muestras (órdenes) correspondientes a 92.747 clientes.
+Los faltantes son pocos. El 1,4~\% de las órdenes no tiene datos del producto porque el vendedor no los registró, y el 0,5~\% no tiene distancia porque su código postal no está en la tabla de geolocalización. Imputamos los valores numéricos faltantes con la mediana del conjunto de entrenamiento y convertimos la categoría faltante en un nivel propio. En otras \num{1343} órdenes la fecha de despacho a la transportadora es anterior a la aprobación del pago; es un error de registro y llevamos esa diferencia a cero.
 
-\vspace{1.5em}
-\subsubsection{Número de variables y su significado}
-Tras el cruce de tablas, construimos un total de 30 variables de entrada por cada orden, agrupadas de la siguiente manera:
+A las variables numéricas con cola larga a la derecha (precio, flete, peso, volumen, distancia y días hasta el despacho) les aplicamos $\log(1+x)$, y después estandarizamos todas las numéricas. Las binarias quedan en 0 y 1. Las categóricas las codificamos con \emph{one-hot}. Para categoría y estados solo los 15 niveles más frecuentes en el conjunto de entrenamiento tienen columna propia, y el resto va a un nivel \emph{Otros} que también recibe los niveles que aparezcan por primera vez en prueba. El resultado son 79 columnas.
 
-\begin{itemize}
-    \item Variables Logísticas y de Tiempo (Numéricas continuas y Binarias): Incluyen los días transcurridos desde la compra hasta la entrega, los días de retraso frente a la fecha prometida, el tiempo que tardó el vendedor en entregar a la transportadora, y dos variables binarias (0/1) que indican si el pedido en general llegó tarde y si el vendedor despachó tarde.
-    \item Variables Económicas y de Pago (Numéricas continuas y Discretas): Incluyen el precio total de los artículos, el costo total del flete, la proporción del costo del flete sobre el precio del producto, el valor total pagado por el cliente y el número de cuotas seleccionadas.
-    \item Variables del Producto y Geográficas (Numéricas y Categóricas): Contienen el número de artículos por pedido, peso y volumen de los productos, cantidad de fotos en la publicación. También se calculó la distancia en kilómetros entre el vendedor y el comprador usando las coordenadas, y se incluyeron los estados geográficos de origen y destino.
-    \item Variable Objetivo (Binaria): Clasificamos a los clientes en ``Satisfechos'' (clase 0) si calificaron con 3, 4 o 5 estrellas, e ``Insatisfechos'' (clase 1) si calificaron con 1 o 2 estrellas. Bajo esta regla, el 12.8\% de nuestras órdenes corresponden a clientes insatisfechos (Fig.~\ref{fig:score}).
-\end{itemize}
+\subsection{Hallazgos del análisis exploratorio}
 
+El retraso frente a la fecha prometida es lo que más se asocia con la insatisfacción. Entre las órdenes que llegan a tiempo hay de 9~\% a 11~\% de clientes insatisfechos; con uno a tres días de retraso la cifra sube a 19~\% y desde cuatro días pasa del 60~\%. El 8~\% de las órdenes llega tarde, y en ese grupo la insatisfacción es de 54,1~\%, frente a 9,2~\% en las puntuales. Las órdenes con dos vendedores también salen mal calificadas (46~\% frente a 12~\%), probablemente porque llegan en envíos separados y el cliente califica cuando tiene solo una parte. En el tiempo, la tasa ronda el 10~\% y sube en noviembre de 2017, mes del Black Friday (16,6~\%), y en febrero y marzo de 2018 (19,4~\% y 21,2~\%), meses de mucho volumen. Precio, categoría, tipo de pago y estado aportan poco por sí solos.
 
-\begin{figure}[h!]
-\centering
-\includegraphics[width=0.9\columnwidth]{dist_review_score}
-\caption{Distribución de la calificación de las órdenes. En naranja, las calificaciones agrupadas como insatisfacción.}
-\label{fig:score}
-\end{figure}
+\subsection{Planteamiento de aprendizaje}
 
+Planteamos una clasificación binaria supervisada. Las calificaciones históricas dan la etiqueta: una orden es insatisfecha (clase 1) si recibió 1 o 2 estrellas y satisfecha (clase 0) si recibió de 3 a 5. Predecir el número exacto de estrellas, como regresión o con cinco clases, no le sirve más a la empresa, que necesita saber a quién atender primero, y además funciona mal: Wangkiat y Polprasert~\cite{wangkiat2023} obtienen un $F_1$ macro de 0,32 con cinco clases porque los modelos no distinguen 3 de 4 estrellas.
 
-\subsubsection{Datos faltantes e imputación}
-Hicimos una revisión de valores nulos y encontramos que solo el 1.92\% de los registros presentaba datos faltantes.
-\begin{itemize}
-    \item Las variables relacionadas con características del producto (peso, cantidad de fotos, categoría y longitud del nombre) presentaban un 1.4\% de nulos debido a que los vendedores no llenaron esos datos en Olist. Estrategia: Imputamos las variables numéricas usando la mediana y para la categoría creamos una etiqueta nueva llamada ``Desconocido''.
-    \item Para la distancia entre comprador y vendedor faltaba el 0.5\% de los datos por códigos postales no mapeados, los cuales también imputamos usando la mediana de las distancias.
-    \item Adicionalmente, detectamos un error en 1.343 registros (1.4\%) donde la fecha de entrega a la transportadora aparecía registrada antes de la fecha de aprobación del pago; en estos casos, igualamos esa diferencia de días a cero para evitar tiempos negativos ilógicos. Es importante aclarar que el cálculo de la mediana para la imputación se hará únicamente sobre los datos de entrenamiento para evitar el sesgo o fuga de información.
-\end{itemize}
+Las órdenes de 3 estrellas son el 8,3~\% y su lugar no es obvio, porque pueden reflejar una experiencia neutra. Las dejamos en la clase satisfecha por lo que muestra la sección 10 del notebook de exploración. Su perfil logístico se parece más al de las órdenes de 4 y 5 estrellas: llegan tarde el 11,0~\% de las veces, frente a 3,5~\% de las de 4--5 y 33,8~\% de las de 1--2. Un modelo entrenado sin ellas les asigna un riesgo medio de 0,16, cercano al de las de 4 estrellas (0,12) y lejos del de las de 2 (0,25). Excluirlas sube el AUC-ROC en menos de 0,01, con intervalos de confianza que se traslapan, mientras que pasarlas a la clase insatisfecha lo baja en 0,05. Es además el corte que usan los trabajos previos con estos datos~\cite{wong2020,zaghloul2024,orman2026}, lo que permite comparar resultados.
 
-\vspace{1.5em}
-\subsubsection{Estrategia de codificación de variables}
-Para preparar los datos para los diferentes algoritmos de Machine Learning, definimos las siguientes codificaciones:
-
-\begin{itemize}
-    \item Escalado de variables numéricas: Variables como el precio, el peso, el costo del flete y la distancia tienen valores muy dispersos y asimétricos (outliers muy altos). Por esto, primero aplicaremos una transformación logarítmica $\log(1+x)$ y luego las estandarizaremos usando Z-score.
-    \item Variables binarias: Las variables lógicas (ej: si el pedido llegó tarde o si comprador y vendedor son del mismo estado) se mantendrán con valores de 0 y 1.
-    \item Variables categóricas: Para el método de pago principal usaremos codificación One-Hot Encoding. Para los estados geográficos y las categorías de productos (que son más de 70), seleccionaremos solo las 15 más frecuentes aplicándoles One-Hot Encoding y agruparemos el resto en una categoría llamada ``Otros'' para no aumentar exageradamente la dimensionalidad del modelo.
-\end{itemize}
-
-
-
-\subsection{Análisis exploratorio}
-
-El factor con mayor correlación empírica con la insatisfacción es el cumplimiento de la promesa de entrega (Fig.~\ref{fig:retraso}). Mientras el pedido llegue dentro de la fecha estimada, la tasa de clientes insatisfechos oscila entre el 9~\% y el 11~\%. En cambio, al acumular cuatro días de retraso, la insatisfacción supera el 60~\%. A nivel global, el 8~\% de las órdenes sufrió retrasos, y dentro de este grupo la insatisfacción trepa al 54,1~\%, frente al 9,2~\% registrado en entregas puntuales. Otro patrón revelador aparece en órdenes que involucran a dos vendedores: la insatisfacción alcanza el 46~\% frente al 12~\% en órdenes de un solo vendedor. Nuestra hipótesis es que estas compras llegan en envíos separados y el cliente califica negativamente al recibir solo una parte del pedido.
-
-\begin{figure}[h!]
-\centering
-\includegraphics[width=\columnwidth]{insatisfaccion_retraso}
-\caption{Porcentaje de órdenes insatisfechas según el retraso de la entrega frente a la fecha estimada. Los valores negativos indican que la orden llegó antes.}
-\label{fig:retraso}
-\end{figure}
-
-A lo largo del tiempo, la insatisfacción ronda el 10~\% durante casi todo el periodo, pero sube en noviembre de 2017 (16,6~\%), coincidiendo con Black Friday, y en febrero y marzo de 2018 (19,4~\% y 21,2~\%). Son meses de alto volumen de compras donde sospechamos que la logística se congestiona.
-
-Evaluamos también si una mala experiencia en la primera compra castiga la recompra en la plataforma. Contrario a lo esperado, los datos no evidencian un impacto detectable: el 97~\% de los usuarios compra exactamente una vez, y la tasa de recompra entre clientes satisfechos (3,0~\%) y descontentos (2,8~\%) no difiere con significancia estadística ($\chi^2$, $p=0{,}28$). Con un volumen tan bajo de recompras históricas, el conjunto de datos no ofrece base empírica para modelar retención a largo plazo, por lo que este aspecto se mantiene como una premisa de negocio respaldada en un estudio externo~\cite{zeinali2026}.
-
-
-\vspace{1.5em}
-\subsection{Paradigma de aprendizaje y justificación}
-
-Para resolver este problema, hemos decidido estructurar la solución utilizando un paradigma de Clasificación Binaria Supervisada. Las razones que nos llevaron a tomar esta decisión son las siguientes:
-
-\begin{enumerate}
-    \item ¿Por qué aprendizaje supervisado? 
-    Contamos con una ventaja importante en el conjunto de datos de Olist: tenemos acceso al registro histórico real de las reseñas dejadas por los usuarios. Dado que la etiqueta o ``verdad'' ya existe (sabemos si el cliente quedó contento o no), el enfoque más lógico es el aprendizaje supervisado, ya que el modelo puede aprender directamente de estos ejemplos históricos.
-    \vspace{1em}
-    \item ¿Por qué clasificación binaria y no regresión o multiclase?
-    Aunque la variable original (review\_score) tiene un rango numérico de 1 a 5 estrellas, predecir el número exacto (regresión) o intentar clasificar la orden en una de las 5 categorías exactas (clasificación multiclase) no aporta tanto valor al negocio. Olist necesita alertas tempranas y claras sobre clientes que tuvieron una experiencia muy mala y tienen alto riesgo de abandono. Además, como lo demostraron Wangkiat y Polprasert [6], los modelos multiclase en este escenario tienen un rendimiento muy bajo (con un $F_1$ macro de solo 0.32) porque es difícil diferenciar los matices entre una calificación de 3 y 4 estrellas.
-    Por esta razón, nos alineamos con la literatura previa \cite{zeinali2026}, \cite{orman2026}, \cite{zaghloul2024} y definimos el problema de manera binaria: agrupamos las calificaciones 1 y 2 como ``Cliente Insatisfecho'' (clase 1) y las calificaciones de 3 a 5 como ``Cliente Satisfecho'' (clase 0).
-    \vspace{1em}
-    \item Métricas de evaluación y manejo del desbalance:
-    Como vimos en la exploración, nuestros datos están desbalanceados: solo el 12.8\% de las órdenes resultan en insatisfacción. Esto hace que usar la exactitud global (Accuracy) sea engañoso. Si un modelo dice que todos los clientes están satisfechos sin hacer ningún cálculo, tendría un ``éxito'' aparente del 87.2\%, pero sería inútil para la empresa porque fallaría en detectar los verdaderos casos de riesgo. Por eso, en nuestro proyecto evaluaremos el desempeño de los modelos centrándonos en métricas que castiguen los errores en la clase minoritaria (los insatisfechos). Utilizaremos principalmente:
-    \begin{enumerate}
-        \item Sensibilidad (Recall) y el $F_1$-score de la clase minoritaria para saber cuántos de los clientes realmente insatisfechos logramos detectar.
-        \item Área bajo la curva ROC (AUC-ROC) y la exactitud balanceada para medir el rendimiento general del modelo separando bien ambas clases independientemente de cuántos datos haya de cada una.
-    \end{enumerate}
-    \vspace{1em}
-    Finalmente, para tratar el desbalance de los datos durante el entrenamiento de los algoritmos (Entregable II), planeamos probar técnicas como asignarle más peso a los errores en la clase minoritaria o generar datos sintéticos (sobremuestreo), asegurándonos de aplicar esto solo en los pliegues de entrenamiento para que los resultados de validación sigan siendo confiables.
-\end{enumerate}
-
+Las variables de entrega solo se conocen cuando la orden llega, y por eso proponemos usar el modelo en ese momento, que es cuando Olist envía la encuesta. Con esa definición no hay fuga de información: ninguna variable usa datos posteriores a la entrega ni contenido de la reseña. Un sistema que alertara desde la compra no tendría las variables de entrega y sería un problema distinto.
 
 \section{Estado del arte}
 
@@ -269,6 +180,56 @@ Red neuronal & 0,486 & 0,467 $\pm$ 0,007 & 0,464 [0,445; 0,480] & 0,748 & 0,449 
 \end{figure*}
 
 Con el bosque aleatorio y el umbral elegido, la alerta encuentra al 45~\% de los clientes que van a calificar con 1 o 2 estrellas, y 52 de cada 100 órdenes marcadas terminan mal calificadas, cuando al azar serían 13. Más de la mitad de los insatisfechos se le escapa al modelo. Las variables describen la entrega y la orden, pero no la calidad del producto ni si coincidía con lo anunciado, y una orden puede llegar a tiempo y aun así decepcionar al cliente.
+
+\section{Reducción de dimensión}
+
+Evaluamos tres formas de simplificar el modelo sobre los dos mejores de la sección anterior, \emph{gradient boosting} y bosque aleatorio, con sus hiperparámetros fijos y el mismo protocolo de validación. Ajustamos la reducción dentro de cada pliegue, después del preprocesamiento.
+
+\subsection{Análisis individual de variables}
+
+Para cada una de las 30 variables medimos, con el conjunto de entrenamiento, la información mutua con la etiqueta, que no supone una relación lineal y se aplica igual a numéricas y categóricas. La complementamos con el AUC univariado para numéricas y binarias, la V de Cramér para categóricas y la correlación de Spearman entre pares de variables numéricas para detectar redundancia. Las tres variables de entrega (retraso frente a lo prometido, días hasta la entrega e indicador de entrega tardía) tienen entre 0,044 y 0,057 nats, el doble que la siguiente, que es el número de vendedores de la orden (Fig.~\ref{fig:individual}). Las categóricas aportan poco: ninguna pasa de 0,004 nats ni de 0,09 en la V de Cramér.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=0.95\columnwidth]{analisis_individual}
+\caption{Información mutua de cada variable de entrada con la etiqueta, calculada en el conjunto de entrenamiento.}
+\label{fig:individual}
+\end{figure}
+
+Marcamos como candidatas a eliminar las variables con información mutua menor que 0,001 nats y AUC univariado menor que 0,53, y la menos informativa de cada par con $|\rho_s|>0{,}8$. Salen cinco: hora de compra, tipo de pago, cuotas, estado del vendedor y precio total, que es casi idéntico al valor pagado ($\rho_s=0{,}99$). Como dos de ellas son categóricas, quitarlas elimina 24 de las 79 columnas. Ninguno de los dos modelos pierde desempeño sin ellas (Tabla~\ref{tab:reduccion}).
+
+\subsection{Extracción lineal: PCA}
+
+Tomamos el menor número de componentes principales que conserva el 95~\% de la varianza del entrenamiento: 29 de 79, una reducción del 63~\%. Es un criterio que no mira la etiqueta, así que la elección no se ajusta a los datos de validación. Con PCA el $F_1$ de validación baja de 0,48 a 0,46 en los dos modelos, sin traslape de intervalos con el espacio original. PCA conserva varianza y no capacidad de discriminar: buena parte de la varianza está en variables poco informativas como el precio, el peso o las columnas \emph{one-hot}, y el retraso queda repartido entre varias componentes. Los árboles lo resienten, porque en el espacio original pueden cortar directamente sobre la entrega tardía.
+
+\subsection{Extracción no lineal: UMAP}
+
+Para UMAP no hay una varianza explicada que sirva de criterio, así que elegimos el número de componentes por validación cruzada sobre una submuestra de \num{20000} órdenes: el menor entre 2, 5, 10 y 20 cuyo $F_1$ cae dentro del intervalo de confianza del mejor. El $F_1$ no mejoró al agregar componentes y quedaron 2. Con todo el entrenamiento, los modelos sobre UMAP llegan a un $F_1$ de 0,36 a 0,37 en validación y su AUC-ROC en prueba baja a 0,61. UMAP no usa la etiqueta y conserva los vecindarios del espacio de 79 columnas, donde la distancia la dominan las columnas de categoría y estado; dos órdenes con el mismo producto y el mismo destino quedan cerca aunque una haya llegado a tiempo y la otra con diez días de retraso.
+
+\begin{table}[!t]
+\centering
+\caption{Desempeño de los dos mejores modelos con cada reducción. Reducción frente a las 79 columnas del preprocesamiento; $F_1$ de la clase insatisfecha en validación (media $\pm$ IC del 95~\%) y en prueba}
+\label{tab:reduccion}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Espacio & Dim. (red.) & $F_1$ val. & $F_1$ prueba & AUC-ROC \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{Gradient boosting}} \\
+\quad Original & 79 (0~\%) & 0,481 $\pm$ 0,008 & 0,481 & 0,763 \\
+\quad Selección & 55 (30~\%) & 0,480 $\pm$ 0,008 & 0,481 & 0,763 \\
+\quad PCA & 29 (63~\%) & 0,463 $\pm$ 0,010 & 0,469 & 0,755 \\
+\quad UMAP & 2 (97~\%) & 0,364 $\pm$ 0,017 & 0,388 & 0,612 \\
+\addlinespace
+\multicolumn{5}{@{}l}{Bosque aleatorio} \\
+\quad Original & 79 (0~\%) & 0,480 $\pm$ 0,008 & 0,483 & 0,764 \\
+\quad Selección & 55 (30~\%) & 0,479 $\pm$ 0,008 & 0,477 & 0,763 \\
+\quad PCA & 29 (63~\%) & 0,464 $\pm$ 0,006 & 0,467 & 0,759 \\
+\quad UMAP & 2 (97~\%) & 0,371 $\pm$ 0,014 & 0,385 & 0,616 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \bibliographystyle{IEEEtran}
 \bibliography{referencias}

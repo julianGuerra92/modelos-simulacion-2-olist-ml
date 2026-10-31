@@ -1,0 +1,9 @@
+modelo,espacio,dimensión,reducción,F1 validación,F1 prueba,AUC-ROC prueba,AUC-PR prueba,sensibilidad prueba,precisión prueba
+Gradient boosting,original,79,0%,0.481 ± 0.008,"0.481 [0.463, 0.498]",0.763,0.481,0.445,0.524
+Gradient boosting,selección,55,30%,0.480 ± 0.008,"0.481 [0.462, 0.498]",0.763,0.483,0.437,0.534
+Bosque aleatorio,original,79,0%,0.480 ± 0.008,"0.483 [0.466, 0.501]",0.764,0.483,0.451,0.520
+Bosque aleatorio,selección,55,30%,0.479 ± 0.008,"0.477 [0.459, 0.494]",0.763,0.481,0.415,0.561
+Gradient boosting,PCA,29,63%,0.463 ± 0.010,"0.469 [0.451, 0.486]",0.755,0.458,0.422,0.527
+Bosque aleatorio,PCA,29,63%,0.464 ± 0.006,"0.467 [0.449, 0.484]",0.759,0.463,0.428,0.514
+Gradient boosting,UMAP,2,97%,0.364 ± 0.017,"0.388 [0.367, 0.410]",0.612,0.345,0.279,0.635
+Bosque aleatorio,UMAP,2,97%,0.371 ± 0.014,"0.385 [0.364, 0.406]",0.616,0.347,0.286,0.587
