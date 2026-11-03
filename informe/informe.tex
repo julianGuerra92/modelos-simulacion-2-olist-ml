@@ -25,15 +25,14 @@
 
 \maketitle
 
-\iffalse
 \begin{abstract}
-Olist es un marketplace brasileño que conecta pequeños y medianos comerciantes con los principales portales de comercio electrónico. Después de cada compra, el cliente califica su experiencia de 1 a 5; una calificación baja deteriora la reputación del vendedor y la confianza en la plataforma. Planteamos un clasificador binario para anticipar si una orden entregada recibirá una calificación de 1 o 2 a partir de variables de la orden, el producto, el pago y la entrega. Al analizar \num{95824} órdenes entregadas entre 2016 y 2018, con un 12,8~\% de clientes insatisfechos, el análisis exploratorio confirma que el retraso frente a la fecha prometida es el factor más asociado: la insatisfacción pasa de 9,2~\% en órdenes a tiempo a 54,1~\% en órdenes tardías.
+Olist, un marketplace brasileño, le pide a cada cliente que califique su compra de 1 a 5 estrellas cuando recibe el pedido, y el 12,8~\% de las órdenes entregadas recibe 1 o 2. Construimos un clasificador que, en el momento en que se registra la entrega, estima la probabilidad de que la orden termine con una calificación así. Usamos 30 variables de la entrega, el pago, el producto y la ubicación de \num{95824} órdenes de 2016 a 2018, y comparamos regresión logística, KNN, SVM, bosque aleatorio, \emph{gradient boosting} y un perceptrón multicapa con validación cruzada estratificada y un conjunto de prueba aparte. La métrica principal es el $F_1$ de la clase insatisfecha. Los ensambles de árboles dan los mejores resultados en prueba ($F_1$ de 0,48, AUC-ROC de 0,76 y AUC-PR de 0,48), con una sensibilidad del 45~\% y una precisión del 52~\%. El análisis individual de variables permite quitar cinco de ellas sin perder desempeño, mientras que PCA y UMAP empeoran el modelo. El retraso frente a la fecha de entrega prometida es el factor más asociado a la insatisfacción.
 \end{abstract}
 
+\renewcommand{\IEEEkeywordsname}{Palabras clave}
 \begin{IEEEkeywords}
-Comercio electrónico, satisfacción del cliente, clasificación desbalanceada, aprendizaje supervisado, Olist.
+Comercio electrónico, satisfacción del cliente, clasificación desbalanceada, aprendizaje supervisado, reducción de dimensión, Olist.
 \end{IEEEkeywords}
-\fi
 
 
 \section{Descripción del problema}
@@ -230,6 +229,14 @@ Espacio & Dim. (red.) & $F_1$ val. & $F_1$ prueba & AUC-ROC \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\section{Discusión y conclusiones}
+
+El retraso de la entrega frente a la fecha prometida es lo que mejor anticipa una calificación de 1 o 2 estrellas. Lo mostró el análisis exploratorio, lo confirma el análisis individual de variables y coincide con los cuatro trabajos revisados. El modelo que proponemos, un \emph{gradient boosting} con 25 variables, detecta en prueba al 44~\% de los clientes que terminarán insatisfechos con una precisión del 53~\%, cuatro veces la tasa base de 12,8~\%. Los dos ensambles de árboles superan a los otros cuatro modelos, sobre todo en AUC-PR, y entre ellos los intervalos se traslapan por completo. La regresión logística queda solo dos centésimas de $F_1$ por debajo, lo que indica que la mayor parte de la señal es casi lineal y está concentrada en pocas variables.
+
+Frente a la literatura, nuestro AUC-ROC de 0,76 es menor que el 0,90 de Zaghloul et~al.~\cite{zaghloul2024}, pero ellos partieron los datos por artículo y reportan métricas ponderadas por clase, dos decisiones que inflan el resultado. El trabajo comparable es el de Orman~\cite{orman2026}, que reporta las métricas de la clase insatisfecha: su mejor red obtiene un $F_1$ de 0,24 y una sensibilidad de 14,4~\% en esa clase, y nuestro bosque aleatorio llega a 0,48 y 45~\%. Wong y Marikannan~\cite{wong2020} detectan al 29,5~\% de los insatisfechos. La diferencia está en ajustar el umbral de decisión para la clase minoritaria en vez de usar 0,5 y en seleccionar el modelo con una métrica de esa clase. En cuanto a la reducción de dimensión, quitar cinco variables poco informativas recorta el 30~\% de las columnas sin pérdida, mientras que PCA y UMAP, que no usan la etiqueta, mezclan la señal de entrega con variables irrelevantes y empeoran el modelo.
+
+El trabajo tiene límites. Las variables describen la operación, no el producto ni la atención al cliente, y más de la mitad de los insatisfechos no se pueden anticipar con ellas. El modelo se evaluó con una partición aleatoria; como la tasa de insatisfacción cambia en los meses de alto volumen, una validación temporal, entrenando con meses anteriores y evaluando con los siguientes, daría una estimación más realista para un despliegue. Por último, el beneficio para Olist depende de lo que haga con las alertas, y el vínculo entre insatisfacción y abandono no se puede medir en estos datos porque casi ningún cliente vuelve a comprar.
 
 \bibliographystyle{IEEEtran}
 \bibliography{referencias}
