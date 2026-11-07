@@ -23,7 +23,9 @@ def _log_sin_negativos(X):
     return np.log1p(np.clip(X, 0, None))
 
 
-def preprocesador(max_niveles=MAX_NIVELES):
+def preprocesador(max_niveles=MAX_NIVELES, excluir=()):
+    """Transformador de columnas; `excluir` quita variables de entrada (selección de características)."""
+    usar = lambda columnas: [c for c in columnas if c not in excluir]
     asimetricas = make_pipeline(
         SimpleImputer(strategy="median"),
         FunctionTransformer(_log_sin_negativos, feature_names_out="one-to-one"),
@@ -36,8 +38,8 @@ def preprocesador(max_niveles=MAX_NIVELES):
                       sparse_output=False),
     )
     return ColumnTransformer([
-        ("asim", asimetricas, ASIMETRICAS),
-        ("num", simetricas, SIMETRICAS),
-        ("bin", "passthrough", BIN),
-        ("cat", categoricas, CAT),
+        ("asim", asimetricas, usar(ASIMETRICAS)),
+        ("num", simetricas, usar(SIMETRICAS)),
+        ("bin", "passthrough", usar(BIN)),
+        ("cat", categoricas, usar(CAT)),
     ], verbose_feature_names_out=False)
