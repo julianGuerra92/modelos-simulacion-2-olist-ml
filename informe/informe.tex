@@ -26,7 +26,7 @@
 \maketitle
 
 \begin{abstract}
-Olist, un marketplace brasileño, le pide a cada cliente que califique su compra de 1 a 5 estrellas cuando recibe el pedido, y el 12,8~\% de las órdenes entregadas recibe 1 o 2. Construimos un clasificador que, en el momento en que se registra la entrega, estima la probabilidad de que la orden termine con una calificación así. Usamos 30 variables de la entrega, el pago, el producto y la ubicación de \num{95824} órdenes de 2016 a 2018, y comparamos regresión logística, KNN, SVM, bosque aleatorio, \emph{gradient boosting} y un perceptrón multicapa con validación cruzada estratificada y un conjunto de prueba aparte. La métrica principal es el $F_1$ de la clase insatisfecha. Los ensambles de árboles dan los mejores resultados en prueba ($F_1$ de 0,48, AUC-ROC de 0,76 y AUC-PR de 0,48), con una sensibilidad del 45~\% y una precisión del 52~\%. El análisis individual de variables permite quitar cinco de ellas sin perder desempeño, mientras que PCA y UMAP empeoran el modelo. El retraso frente a la fecha de entrega prometida es el factor más asociado a la insatisfacción.
+Olist, un marketplace brasileño, le pide a cada cliente que califique su compra de 1 a 5 estrellas cuando recibe el pedido, y el 12,8~\% de las órdenes entregadas recibe 1 o 2. Construimos un clasificador que, en el momento en que se registra la entrega, estima la probabilidad de que la orden termine con una calificación así. Usamos 30 variables de la entrega, el pago, el producto y la ubicación de \num{95824} órdenes de 2016 a 2018, y comparamos regresión logística, KNN, SVM, bosque aleatorio, \emph{gradient boosting} y un perceptrón multicapa con validación cruzada estratificada y un conjunto de prueba aparte. La métrica principal es el $F_1$ de la clase insatisfecha. Los ensambles de árboles dan los mejores resultados en prueba ($F_1$ de 0,48, AUC-ROC de 0,76 y AUC-PR de 0,48). El análisis individual de variables permite quitar cinco de ellas sin perder desempeño, mientras que PCA y UMAP empeoran el modelo. El modelo final, un \emph{gradient boosting} con las 25 variables restantes, detecta en prueba al 44~\% de los clientes insatisfechos con una precisión del 53~\%. El retraso frente a la fecha de entrega prometida es el factor más asociado a la insatisfacción.
 \end{abstract}
 
 \renewcommand{\IEEEkeywordsname}{Palabras clave}
@@ -148,28 +148,60 @@ La Fig.~\ref{fig:hiper} muestra cómo cambia el $F_1$ con los hiperparámetros. 
 \label{fig:hiper}
 \end{figure*}
 
-La Tabla~\ref{tab:resultados} compara la mejor configuración de cada modelo en entrenamiento, validación y prueba. Los dos ensambles de árboles quedan arriba en todas las métricas, sin diferencia entre ellos: $F_1$ de 0,483 y 0,481 en prueba, AUC-ROC de 0,764 y 0,763 y AUC-PR de 0,483 y 0,481. En $F_1$ le sacan unas dos centésimas a los otros cuatro modelos y los intervalos se tocan; en AUC-PR la ventaja es más clara y los intervalos de la regresión logística y de los ensambles no se traslapan. Validación y prueba difieren en menos de 0,01 en todos los modelos, así que el umbral elegido fuera de pliegue se transfiere bien a órdenes nuevas. Las curvas ROC y de precisión-sensibilidad en prueba (Fig.~\ref{fig:curvas}) confirman el orden: los ensambles dominan sobre todo en la zona de alta precisión, que es la que importa si la empresa solo puede atender a una parte de las alertas.
+La Tabla~\ref{tab:resultados} compara la mejor configuración de cada modelo en entrenamiento, validación y prueba. Los dos ensambles de árboles quedan arriba en $F_1$, AUC-ROC y AUC-PR, sin diferencia entre ellos: $F_1$ de 0,483 y 0,481 en prueba, AUC-ROC de 0,764 y 0,763 y AUC-PR de 0,483 y 0,481. En $F_1$ le sacan unas dos centésimas a los otros cuatro modelos y los intervalos se tocan; en AUC-PR la ventaja es más clara, y tanto en validación como en prueba los intervalos de la regresión logística y de KNN no se traslapan con los de los ensambles. Los ensambles son también los que más se separan entre entrenamiento y validación (AUC-ROC de 0,881 frente a 0,764 en el bosque aleatorio), pero esa brecha no se traduce en peor desempeño en prueba. En $F_1$ y AUC-ROC, validación y prueba difieren en menos de 0,01 en todos los modelos, y en AUC-PR la mayor diferencia es la de la SVM (0,016), dentro de su intervalo de validación, así que el umbral elegido fuera de pliegue se transfiere bien a órdenes nuevas. Las curvas ROC y de precisión-sensibilidad en prueba (Fig.~\ref{fig:curvas}) confirman el orden: los ensambles dominan sobre todo en la zona de alta precisión, que es la que importa si la empresa solo puede atender a una parte de las alertas.
 
-\begin{table*}[!t]
+\begin{table}[!t]
 \centering
-\caption{Desempeño de la mejor configuración de cada modelo. Validación: media de 5 pliegues $\pm$ semiancho del IC del 95~\%. Prueba: valor puntual con IC bootstrap del 95~\%}
+\caption{Desempeño de la mejor configuración de cada modelo. Entrenamiento: media de los 5 pliegues de entrenamiento. Validación: media de 5 pliegues $\pm$ semiancho del IC del 95~\%. Prueba: valor puntual con IC bootstrap del 95~\%. $F_1$, sensibilidad y precisión usan el umbral que maximiza el $F_1$ en cada pliegue y, en prueba, el fijado con las predicciones fuera de pliegue del entrenamiento}
 \label{tab:resultados}
 \footnotesize
-\begin{tabular}{@{}lccccc@{}}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccc@{}}
 \toprule
- & \multicolumn{3}{c}{$F_1$ clase insatisfecha} & \multicolumn{2}{c}{Prueba} \\
-\cmidrule(lr){2-4}\cmidrule(l){5-6}
-Modelo & Entrenamiento & Validación & Prueba & AUC-ROC & AUC-PR \\
+Modelo & Entren. & Validación & Prueba \\
 \midrule
-Regresión logística & 0,463 & 0,464 $\pm$ 0,007 & 0,457 [0,439; 0,474] & 0,751 & 0,418 \\
-KNN & 1,000 & 0,458 $\pm$ 0,007 & 0,457 [0,439; 0,474] & 0,743 & 0,437 \\
-SVM & 0,471 & 0,467 $\pm$ 0,029 & 0,460 [0,443; 0,478] & 0,754 & 0,435 \\
-Bosque aleatorio & 0,526 & 0,480 $\pm$ 0,008 & 0,483 [0,466; 0,501] & 0,764 & 0,483 \\
-\emph{Gradient boosting} & 0,505 & 0,481 $\pm$ 0,008 & 0,481 [0,463; 0,498] & 0,763 & 0,481 \\
-Red neuronal & 0,486 & 0,467 $\pm$ 0,007 & 0,464 [0,445; 0,480] & 0,748 & 0,449 \\
+\multicolumn{4}{@{}l}{\emph{$F_1$ de la clase insatisfecha}} \\
+\quad Reg. logística & 0,463 & 0,464 $\pm$ 0,007 & 0,457 [0,439; 0,474] \\
+\quad KNN & 1,000 & 0,458 $\pm$ 0,007 & 0,457 [0,439; 0,474] \\
+\quad SVM & 0,471 & 0,467 $\pm$ 0,029 & 0,460 [0,443; 0,478] \\
+\quad Bosque aleatorio & 0,526 & 0,480 $\pm$ 0,008 & 0,483 [0,466; 0,501] \\
+\quad \emph{Gradient boosting} & 0,505 & 0,481 $\pm$ 0,008 & 0,481 [0,463; 0,498] \\
+\quad Red neuronal & 0,486 & 0,467 $\pm$ 0,007 & 0,464 [0,445; 0,480] \\
+\addlinespace
+\multicolumn{4}{@{}l}{\emph{AUC-ROC}} \\
+\quad Reg. logística & 0,749 & 0,747 $\pm$ 0,005 & 0,751 [0,740; 0,763] \\
+\quad KNN & 1,000 & 0,744 $\pm$ 0,007 & 0,743 [0,730; 0,755] \\
+\quad SVM & 0,761 & 0,746 $\pm$ 0,019 & 0,754 [0,743; 0,766] \\
+\quad Bosque aleatorio & 0,881 & 0,764 $\pm$ 0,006 & 0,764 [0,752; 0,775] \\
+\quad \emph{Gradient boosting} & 0,827 & 0,762 $\pm$ 0,007 & 0,763 [0,751; 0,775] \\
+\quad Red neuronal & 0,789 & 0,756 $\pm$ 0,006 & 0,748 [0,737; 0,760] \\
+\addlinespace
+\multicolumn{4}{@{}l}{\emph{AUC-PR}} \\
+\quad Reg. logística & 0,422 & 0,421 $\pm$ 0,012 & 0,418 [0,398; 0,441] \\
+\quad KNN & 1,000 & 0,439 $\pm$ 0,011 & 0,437 [0,416; 0,458] \\
+\quad SVM & 0,462 & 0,451 $\pm$ 0,032 & 0,435 [0,414; 0,457] \\
+\quad Bosque aleatorio & 0,588 & 0,475 $\pm$ 0,013 & 0,483 [0,462; 0,505] \\
+\quad \emph{Gradient boosting} & 0,526 & 0,477 $\pm$ 0,012 & 0,481 [0,460; 0,503] \\
+\quad Red neuronal & 0,504 & 0,460 $\pm$ 0,013 & 0,449 [0,427; 0,472] \\
+\addlinespace
+\multicolumn{4}{@{}l}{\emph{Sensibilidad}} \\
+\quad Reg. logística & 0,419 & 0,422 $\pm$ 0,007 & 0,420 [0,401; 0,439] \\
+\quad KNN & 1,000 & 0,428 $\pm$ 0,027 & 0,431 [0,412; 0,450] \\
+\quad SVM & 0,417 & 0,423 $\pm$ 0,028 & 0,416 [0,397; 0,434] \\
+\quad Bosque aleatorio & 0,471 & 0,429 $\pm$ 0,029 & 0,451 [0,432; 0,471] \\
+\quad \emph{Gradient boosting} & 0,461 & 0,435 $\pm$ 0,039 & 0,445 [0,425; 0,463] \\
+\quad Red neuronal & 0,457 & 0,428 $\pm$ 0,021 & 0,421 [0,401; 0,439] \\
+\addlinespace
+\multicolumn{4}{@{}l}{\emph{Precisión}} \\
+\quad Reg. logística & 0,518 & 0,515 $\pm$ 0,019 & 0,500 [0,478; 0,523] \\
+\quad KNN & 1,000 & 0,496 $\pm$ 0,041 & 0,486 [0,464; 0,506] \\
+\quad SVM & 0,543 & 0,522 $\pm$ 0,035 & 0,516 [0,494; 0,538] \\
+\quad Bosque aleatorio & 0,595 & 0,550 $\pm$ 0,039 & 0,520 [0,499; 0,541] \\
+\quad \emph{Gradient boosting} & 0,560 & 0,543 $\pm$ 0,053 & 0,524 [0,503; 0,545] \\
+\quad Red neuronal & 0,520 & 0,515 $\pm$ 0,048 & 0,517 [0,495; 0,537] \\
 \bottomrule
 \end{tabular}
-\end{table*}
+\end{table}
 
 \begin{figure*}[!t]
 \centering
@@ -183,6 +215,32 @@ Con el bosque aleatorio y el umbral elegido, la alerta encuentra al 45~\% de los
 \section{Reducción de dimensión}
 
 Evaluamos tres formas de simplificar el modelo sobre los dos mejores de la sección anterior, \emph{gradient boosting} y bosque aleatorio, con sus hiperparámetros fijos y el mismo protocolo de validación. Ajustamos la reducción dentro de cada pliegue, después del preprocesamiento.
+
+\begin{table*}[!t]
+\centering
+\caption{Desempeño de los dos mejores modelos con cada reducción. Reducción frente a las 79 columnas del preprocesamiento. $F_1$ de la clase insatisfecha en validación (media $\pm$ semiancho del IC del 95~\%) y en prueba (IC bootstrap del 95~\%); las demás métricas, en prueba}
+\label{tab:reduccion}
+\footnotesize
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+ & & \multicolumn{2}{c}{$F_1$} & \multicolumn{4}{c}{Prueba} \\
+\cmidrule(lr){3-4}\cmidrule(l){5-8}
+Espacio & Dim. (red.) & Validación & Prueba & AUC-ROC & AUC-PR & Sensibilidad & Precisión \\
+\midrule
+\multicolumn{8}{@{}l}{\emph{Gradient boosting}} \\
+\quad Original & 79 (0~\%) & 0,481 $\pm$ 0,008 & 0,481 [0,463; 0,498] & 0,763 & 0,481 & 0,445 & 0,524 \\
+\quad Selección & 55 (30~\%) & 0,480 $\pm$ 0,008 & 0,481 [0,462; 0,498] & 0,763 & 0,483 & 0,437 & 0,534 \\
+\quad PCA & 29 (63~\%) & 0,463 $\pm$ 0,010 & 0,469 [0,451; 0,486] & 0,755 & 0,458 & 0,422 & 0,527 \\
+\quad UMAP & 2 (97~\%) & 0,364 $\pm$ 0,017 & 0,388 [0,367; 0,410] & 0,612 & 0,345 & 0,279 & 0,635 \\
+\addlinespace
+\multicolumn{8}{@{}l}{Bosque aleatorio} \\
+\quad Original & 79 (0~\%) & 0,480 $\pm$ 0,008 & 0,483 [0,466; 0,501] & 0,764 & 0,483 & 0,451 & 0,520 \\
+\quad Selección & 55 (30~\%) & 0,479 $\pm$ 0,008 & 0,477 [0,459; 0,494] & 0,763 & 0,481 & 0,415 & 0,561 \\
+\quad PCA & 29 (63~\%) & 0,464 $\pm$ 0,006 & 0,467 [0,449; 0,484] & 0,759 & 0,463 & 0,428 & 0,514 \\
+\quad UMAP & 2 (97~\%) & 0,371 $\pm$ 0,014 & 0,385 [0,364; 0,406] & 0,616 & 0,347 & 0,286 & 0,587 \\
+\bottomrule
+\end{tabular}
+\end{table*}
 
 \subsection{Análisis individual de variables}
 
@@ -205,34 +263,9 @@ Tomamos el menor número de componentes principales que conserva el 95~\% de la 
 
 Para UMAP no hay una varianza explicada que sirva de criterio, así que elegimos el número de componentes por validación cruzada sobre una submuestra de \num{20000} órdenes: el menor entre 2, 5, 10 y 20 cuyo $F_1$ cae dentro del intervalo de confianza del mejor. El $F_1$ no mejoró al agregar componentes y quedaron 2. Con todo el entrenamiento, los modelos sobre UMAP llegan a un $F_1$ de 0,36 a 0,37 en validación y su AUC-ROC en prueba baja a 0,61. UMAP no usa la etiqueta y conserva los vecindarios del espacio de 79 columnas, donde la distancia la dominan las columnas de categoría y estado; dos órdenes con el mismo producto y el mismo destino quedan cerca aunque una haya llegado a tiempo y la otra con diez días de retraso.
 
-\begin{table}[!t]
-\centering
-\caption{Desempeño de los dos mejores modelos con cada reducción. Reducción frente a las 79 columnas del preprocesamiento; $F_1$ de la clase insatisfecha en validación (media $\pm$ IC del 95~\%) y en prueba}
-\label{tab:reduccion}
-\footnotesize
-\setlength{\tabcolsep}{3.5pt}
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-Espacio & Dim. (red.) & $F_1$ val. & $F_1$ prueba & AUC-ROC \\
-\midrule
-\multicolumn{5}{@{}l}{\emph{Gradient boosting}} \\
-\quad Original & 79 (0~\%) & 0,481 $\pm$ 0,008 & 0,481 & 0,763 \\
-\quad Selección & 55 (30~\%) & 0,480 $\pm$ 0,008 & 0,481 & 0,763 \\
-\quad PCA & 29 (63~\%) & 0,463 $\pm$ 0,010 & 0,469 & 0,755 \\
-\quad UMAP & 2 (97~\%) & 0,364 $\pm$ 0,017 & 0,388 & 0,612 \\
-\addlinespace
-\multicolumn{5}{@{}l}{Bosque aleatorio} \\
-\quad Original & 79 (0~\%) & 0,480 $\pm$ 0,008 & 0,483 & 0,764 \\
-\quad Selección & 55 (30~\%) & 0,479 $\pm$ 0,008 & 0,477 & 0,763 \\
-\quad PCA & 29 (63~\%) & 0,464 $\pm$ 0,006 & 0,467 & 0,759 \\
-\quad UMAP & 2 (97~\%) & 0,371 $\pm$ 0,014 & 0,385 & 0,616 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
 \section{Discusión y conclusiones}
 
-El retraso de la entrega frente a la fecha prometida es lo que mejor anticipa una calificación de 1 o 2 estrellas. Lo mostró el análisis exploratorio, lo confirma el análisis individual de variables y coincide con los cuatro trabajos revisados. El modelo que proponemos, un \emph{gradient boosting} con 25 variables, detecta en prueba al 44~\% de los clientes que terminarán insatisfechos con una precisión del 53~\%, cuatro veces la tasa base de 12,8~\%. Los dos ensambles de árboles superan a los otros cuatro modelos, sobre todo en AUC-PR, y entre ellos los intervalos se traslapan por completo. La regresión logística queda solo dos centésimas de $F_1$ por debajo, lo que indica que la mayor parte de la señal es casi lineal y está concentrada en pocas variables.
+El retraso de la entrega frente a la fecha prometida es lo que mejor anticipa una calificación de 1 o 2 estrellas. Lo mostró el análisis exploratorio, lo confirma el análisis individual de variables y coincide con los cuatro trabajos revisados. Los dos ensambles de árboles superan a los otros cuatro modelos, sobre todo en AUC-PR, y entre ellos los intervalos se traslapan por completo. Proponemos el \emph{gradient boosting} con las 25 variables que quedan tras el análisis individual, porque es el que conserva el desempeño al quitar las otras cinco: su $F_1$ de prueba sigue en 0,481, mientras que el del bosque aleatorio baja de 0,483 a 0,477 y su sensibilidad de 45~\% a 42~\% (Tabla~\ref{tab:reduccion}). Son diferencias pequeñas, dentro de los intervalos de confianza, así que la elección se apoya más en la estabilidad del \emph{gradient boosting} que en una ventaja demostrada. Este modelo detecta en prueba al 44~\% de los clientes que terminarán insatisfechos con una precisión del 53~\%, cuatro veces la tasa base de 12,8~\%. La regresión logística queda solo dos centésimas de $F_1$ por debajo, lo que indica que la mayor parte de la señal es casi lineal y está concentrada en pocas variables.
 
 Frente a la literatura, nuestro AUC-ROC de 0,76 es menor que el 0,90 de Zaghloul et~al.~\cite{zaghloul2024}, pero ellos partieron los datos por artículo y reportan métricas ponderadas por clase, dos decisiones que inflan el resultado. El trabajo comparable es el de Orman~\cite{orman2026}, que reporta las métricas de la clase insatisfecha: su mejor red obtiene un $F_1$ de 0,24 y una sensibilidad de 14,4~\% en esa clase, y nuestro bosque aleatorio llega a 0,48 y 45~\%. Wong y Marikannan~\cite{wong2020} detectan al 29,5~\% de los insatisfechos. La diferencia está en ajustar el umbral de decisión para la clase minoritaria en vez de usar 0,5 y en seleccionar el modelo con una métrica de esa clase. En cuanto a la reducción de dimensión, quitar cinco variables poco informativas recorta el 30~\% de las columnas sin pérdida, mientras que PCA y UMAP, que no usan la etiqueta, mezclan la señal de entrega con variables irrelevantes y empeoran el modelo.
 
